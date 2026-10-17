@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveRoom Multiplayer Demo - Live Quiz & Sticky Board</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700;800&display=swap');
+
+    :root {
+      --bg-primary: #090d16;
+      --bg-secondary: #0f172a;
+      --bg-card: rgba(18, 26, 44, 0.7);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --font-display: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --shadow-lg: 0 20px 35px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-mesh {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 45%);
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* Navbar */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(16px);
+      background: rgba(9, 13, 22, 0.75);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 16px 0;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text-main);
+      font-family: var(--font-display); font-size: 1.35rem; font-weight: 800;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 12px var(--accent-emerald);
+      animation: pulse-dot 2s infinite ease-in-out;
+    }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.25); } }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      font-family: var(--font-body); font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px var(--accent-glow); }
+    .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.05); color: var(--text-main); border-color: var(--border-subtle); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
+
+    /* Status Pill */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle);
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-pill.online { color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); }
+    .status-pill.online .status-dot { background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); }
+    .status-pill.offline { color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.3); background: rgba(244, 63, 94, 0.08); }
+    .status-pill.offline .status-dot { background: var(--accent-rose); }
+
+    /* Tab navigation */
+    .demo-tabs { display: flex; justify-content: center; gap: 12px; margin: 24px 0 32px; }
+
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); padding: 24px; backdrop-filter: blur(8px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* --- Quiz Poll Styles --- */
+    .quiz-container { max-width: 680px; margin: 0 auto; }
+    .poll-option {
+      position: relative; background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+      padding: 16px 20px; margin-bottom: 12px; cursor: pointer; overflow: hidden;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .poll-option:hover { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); }
+    .poll-bar {
+      position: absolute; top: 0; left: 0; bottom: 0;
+      background: rgba(99, 102, 241, 0.22);
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .poll-content { position: relative; z-index: 1; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+    .poll-count { position: relative; z-index: 1; font-family: var(--font-mono); font-size: 0.9rem; color: var(--accent-cyan); }
+
+    /* --- Sticky Note Board Styles --- */
+    .sticky-canvas {
+      width: 100%; height: 540px; background: rgba(15, 23, 42, 0.5);
+      border: 1px dashed var(--border-subtle); border-radius: var(--radius-md);
+      position: relative; overflow: hidden; margin-top: 16px;
+    }
+    .sticky-note {
+      position: absolute; width: 190px; min-height: 140px; padding: 14px;
+      border-radius: var(--radius-sm); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+      font-family: var(--font-body); font-size: 0.9rem; color: #1e293b;
+      cursor: grab; user-select: none; display: flex; flex-direction: column; justify-content: space-between;
+      touch-action: none;
+    }
+    .sticky-note:active { cursor: grabbing; z-index: 100; transform: scale(1.02); }
+    .sticky-yellow { background: #fef08a; }
+    .sticky-pink { background: #fbcfe8; }
+    .sticky-blue { background: #bae6fd; }
+    .sticky-green { background: #bbf7d0; }
+
+    /* Reactions */
+    .reactions-bar {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+      background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 999px;
+      box-shadow: var(--shadow-lg);
+    }
+    .react-btn { background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding: 4px 6px; border-radius: 50%; transition: transform 0.15s; }
+    .react-btn:hover { transform: scale(1.35); }
+
+    /* DevTools */
+    .devtools-toggle {
+      position: fixed; bottom: 20px; left: 20px; z-index: 9999;
+      background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+      color: var(--text-main); padding: 8px 14px; border-radius: 999px;
+      display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.8rem; cursor: pointer;
+    }
+    .devtools-drawer {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 350px;
+      background: rgba(11, 15, 25, 0.96); backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-subtle); z-index: 9998;
+      display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s;
+    }
+    .devtools-drawer.open { transform: translateY(0); }
+    .devtools-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid var(--border-subtle); }
+    .devtools-body { flex: 1; padding: 16px 20px; overflow: auto; font-family: var(--font-mono); font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <!-- Header -->
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="brand">
+        <span class="brand-dot"></span>
+        LiveRoom Multiplayer Demo
+      </a>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="status-pill online" id="demo-status-pill">
+          <span class="status-dot"></span>
+          <span id="demo-status-text">online</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="demo-btn-share">🔗 Share Room</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- App Switcher -->
+  <main class="container" style="padding: 30px 24px 100px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <h1 style="font-family:var(--font-display);font-size:2.2rem;font-weight:800;letter-spacing:-0.5px;">Live Multiplayer Experience</h1>
+      <p style="color:var(--text-muted);font-size:0.92rem;margin-top:6px;">
+        100% powered by the public <code>LiveRoom</code> API. Real-time voting, live cursors & drag-and-drop board.
+      </p>
+
+      <div class="demo-tabs">
+        <button class="btn btn-primary btn-sm" id="tab-btn-quiz">📊 Live Quiz & Poll</button>
+        <button class="btn btn-secondary btn-sm" id="tab-btn-sticky">📝 Sticky Notes Canvas</button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: LIVE QUIZ & POLL -->
+    <div id="view-quiz" class="quiz-container">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span class="status-pill online" id="quiz-idx-badge" style="font-size:0.75rem;">Question 1 of 3</span>
+        <span style="color:var(--text-dim);font-size:0.8rem;font-family:var(--font-mono);" id="demo-user-count">1 Active Player</span>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <h2 id="quiz-question-title" style="font-family:var(--font-display);font-size:1.35rem;font-weight:700;margin-bottom:20px;line-height:1.4;color:#fff;">Loading question...</h2>
+        <div id="quiz-options-container"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle);flex-wrap:wrap;gap:12px;">
+          <span style="font-size:0.85rem;color:var(--text-muted);font-family:var(--font-mono);" id="quiz-total-votes">0 Votes Cast</span>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-secondary btn-sm" id="quiz-btn-reset">↺ Reset</button>
+            <button class="btn btn-primary btn-sm" id="quiz-btn-next">Next Question →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Realtime Leaderboard -->
+      <div class="card">
+        <h3 style="font-family:var(--font-display);font-size:1.05rem;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+          <span>🏆 Real-time Leaderboard</span>
+        </h3>
+        <div id="quiz-scoreboard-list"></div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: COLLABORATIVE STICKY BOARD -->
+    <div id="view-sticky" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h2 style="font-family:var(--font-display);font-size:1.3rem;color:#fff;">Multiplayer Sticky Note Canvas</h2>
+          <p style="color:var(--text-muted);font-size:0.85rem;">Drag cards, edit text live, or create new notes across all connected peers.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-add-note">➕ Add Sticky Note</button>
+      </div>
+
+      <div class="sticky-canvas" id="sticky-canvas"></div>
+    </div>
+
+    <!-- Reactions Toolbar -->
+    <div class="reactions-bar">
+      <button class="react-btn" data-emoji="❤️">❤️</button>
+      <button class="react-btn" data-emoji="🔥">🔥</button>
+      <button class="react-btn" data-emoji="🚀">🚀</button>
+      <button class="react-btn" data-emoji="👏">👏</button>
+      <button class="react-btn" data-emoji="🎉">🎉</button>
+    </div>
+  </main>
+
+  <!-- DevTools Floating Drawer -->
+  <div class="devtools-toggle" id="dt-toggle">
+    <span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+    <strong>DevTools</strong>
+    <span id="dt-latency" style="color:#64748b;font-size:0.75rem;">-- ms</span>
+  </div>
+
+  <div class="devtools-drawer" id="dt-drawer">
+    <div class="devtools-header">
+      <strong style="color:#fff;">Live State Inspector (JSON)</strong>
+      <button class="btn btn-secondary btn-sm" id="dt-close-btn">✕ Close</button>
+    </div>
+    <div class="devtools-body"><pre id="dt-json" style="color:#38bdf8;"></pre></div>
+  </div>
+
+  <!-- LOAD LIVEROOM SCRIPT -->
+  <script src="/liveroom.js"></script>
+
+  <!-- COMBINED APPLICATION CONTROLLER -->
+  <script>
+    const DEFAULT_QUESTIONS = [
+      {
+        text: 'What gives LiveRoom its deterministic conflict resolution?',
+        options: [
+          'Client local timestamps',
+          'Authoritative server sequence (seq) + LWW',
+          'Random coin flip',
+          'Two-phase commit locking'
+        ],
+        correct: 1
+      },
+      {
+        text: 'How does LiveRoom handle offline state changes?',
+        options: [
+          'Silently discards them',
+          'Prompts user to retype everything',
+          'Queues locally in memory & sessionStorage, flushes on reconnect',
+          'Blocks UI thread until WiFi returns'
+        ],
+        correct: 2
+      },
+      {
+        text: 'What is the unminified footprint of the LiveRoom client library?',
+        options: [
+          'Over 250 KB with 40 dependencies',
+          'Around 10-15 KB with zero dependencies',
+          'Requires a 50MB WebAssembly bundle',
+          '1.2 MB'
+        ],
+        correct: 1
+      }
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Resolve or Create Room ID
+      const params = new URLSearchParams(window.location.search);
+      let roomId = params.get('room');
+      if (!roomId) {
+        roomId = 'demo-' + Math.random().toString(36).substring(2, 8);
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('room', roomId);
+        window.history.replaceState({}, '', newUrl);
+      }
+
+      // 2. Connect via LiveRoom Public API
+      const room = LiveRoom.join(roomId);
+      room.cursors(true); // Enable live cursors overlay
+
+      // 3. UI Header Bindings
+      const statusPill = document.getElementById('demo-status-pill');
+      const statusText = document.getElementById('demo-status-text');
+      const userCount = document.getElementById('demo-user-count');
+      const shareBtn = document.getElementById('demo-btn-share');
+
+      shareBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(room.link());
+          shareBtn.textContent = '✓ Link Copied!';
+          setTimeout(() => { shareBtn.textContent = '🔗 Share Room'; }, 2000);
+        } catch (e) { prompt('Share link:', room.link()); }
+      };
+
+      room.on('status', s => {
+        statusPill.className = `status-pill ${s}`;
+        statusText.textContent = s;
+      });
+
+      room.on('presence', users => {
+        userCount.textContent = `${users.length} Active Players`;
+      });
+
+      // 4. Tab Switching
+      const tabQuiz = document.getElementById('tab-btn-quiz');
+      const tabSticky = document.getElementById('tab-btn-sticky');
+      const viewQuiz = document.getElementById('view-quiz');
+      const viewSticky = document.getElementById('view-sticky');
+
+      tabQuiz.onclick = () => {
+        tabQuiz.className = 'btn btn-primary btn-sm';
+        tabSticky.className = 'btn btn-secondary btn-sm';
+        viewQuiz.style.display = 'block';
+        viewSticky.style.display = 'none';
+      };
+
+      tabSticky.onclick = () => {
+        tabSticky.className = 'btn btn-primary btn-sm';
+        tabQuiz.className = 'btn btn-secondary btn-sm';
+        viewSticky.style.display = 'block';
+        viewQuiz.style.display = 'none';
+      };
+
+      /* --- TAB 1: LIVE QUIZ & POLL --- */
+      const questionTitle = document.getElementById('quiz-question-title');
+      const questionIdxBadge = document.getElementById('quiz-idx-badge');
+      const optionsContainer = document.getElementById('quiz-options-container');
+      const scoreboardList = document.getElementById('quiz-scoreboard-list');
+      const btnNext = document.getElementById('quiz-btn-next');
+      const btnReset = document.getElementById('quiz-btn-reset');
+      const totalVotesLabel = document.getElementById('quiz-total-votes');
+
+      room.on('status', s => {
+        if (s === 'online' && !room.get('quiz_questions')) {
+          room.set('quiz_questions', DEFAULT_QUESTIONS);
+          room.set('quiz_active_idx', 0);
+          room.set('quiz_votes', {});
+        }
+      });
+
+      function renderQuiz() {
+        const questions = room.get('quiz_questions') || DEFAULT_QUESTIONS;
+        const activeIdx = room.get('quiz_active_idx') || 0;
+        const votes = room.get('quiz_votes') || {};
+        const q = questions[activeIdx] || questions[0];
+
+        questionIdxBadge.textContent = `Question ${activeIdx + 1} of ${questions.length}`;
+        questionTitle.textContent = q.text;
+
+        const voteCounts = [0, 0, 0, 0];
+        let totalVotesForCurrent = 0;
+        const scores = {};
+
+        for (const [userId, voteData] of Object.entries(votes)) {
+          if (voteData.questionIdx === activeIdx) {
+            voteCounts[voteData.optionIdx] = (voteCounts[voteData.optionIdx] || 0) + 1;
+            totalVotesForCurrent += 1;
+          }
+          if (!scores[userId]) scores[userId] = { name: voteData.name || 'Player', points: 0 };
+          const qRef = questions[voteData.questionIdx];
+          if (qRef && voteData.optionIdx === qRef.correct) {
+            scores[userId].points += 100;
+          }
+        }
+
+        totalVotesLabel.textContent = `${totalVotesForCurrent} Votes Cast`;
+        optionsContainer.innerHTML = '';
+        const myVote = votes[room.clientId]?.questionIdx === activeIdx ? votes[room.clientId].optionIdx : null;
+
+        q.options.forEach((optText, optIdx) => {
+          const count = voteCounts[optIdx] || 0;
+          const pct = totalVotesForCurrent > 0 ? Math.round((count / totalVotesForCurrent) * 100) : 0;
+          const isSelected = myVote === optIdx;
+
+          const optEl = document.createElement('div');
+          optEl.className = 'poll-option';
+          if (isSelected) optEl.style.borderColor = '#10b981';
+
+          optEl.innerHTML = `
+            <div class="poll-bar" style="width: ${pct}%;"></div>
+            <div class="poll-content">
+              <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.1);text-align:center;line-height:24px;font-size:0.8rem;">${['A','B','C','D'][optIdx]}</span>
+              <span>${optText}</span>
+              ${isSelected ? '<span style="color:#10b981;font-size:0.8rem;margin-left:8px;">✓ Voted</span>' : ''}
+            </div>
+            <div class="poll-count">${pct}% (${count})</div>
+          `;
+
+          optEl.onclick = () => {
+            const curVotes = { ...(room.get('quiz_votes') || {}) };
+            curVotes[room.clientId] = {
+              questionIdx: activeIdx,
+              optionIdx: optIdx,
+              name: room.name
+            };
+            room.set('quiz_votes', curVotes);
+            room.react('⚡', { x: 0.5, y: 0.5 });
+          };
+
+          optionsContainer.appendChild(optEl);
+        });
+
+        // Scoreboard
+        const sortedPlayers = Object.entries(scores).sort((a, b) => b[1].points - a[1].points);
+        scoreboardList.innerHTML = sortedPlayers.map(([uId, data], rank) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:6px;font-size:0.85rem;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-weight:700;color:${rank === 0 ? '#f59e0b' : '#94a3b8'};">#${rank + 1}</span>
+              <span style="color:#fff;font-weight:600;">${data.name} ${uId === room.clientId ? '<span style="color:#10b981;">(You)</span>' : ''}</span>
+            </div>
+            <span style="color:#06b6d4;font-family:var(--font-mono);font-weight:700;">${data.points} pts</span>
+          </div>
+        `).join('') || '<div style="color:#64748b;font-size:0.8rem;text-align:center;padding:12px;">No votes recorded yet</div>';
+      }
+
+      btnNext.onclick = () => {
+        const questions = room.get('quiz_questions') || DEFAULT_QUESTIONS;
+        const curIdx = room.get('quiz_active_idx') || 0;
+        room.set('quiz_active_idx', (curIdx + 1) % questions.length);
+      };
+
+      btnReset.onclick = () => {
+        room.set('quiz_active_idx', 0);
+        room.set('quiz_votes', {});
+      };
+
+      /* --- TAB 2: COLLABORATIVE STICKY BOARD --- */
+      const stickyCanvas = document.getElementById('sticky-canvas');
+      const btnAddNote = document.getElementById('btn-add-note');
+      const NOTE_COLORS = ['sticky-yellow', 'sticky-pink', 'sticky-blue', 'sticky-green'];
+
+      btnAddNote.onclick = () => {
+        const notes = { ...(room.get('sticky_notes') || {}) };
+        const id = 'note_' + Math.random().toString(36).substring(2, 8);
+        const color = NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)];
+        const x = 30 + Math.random() * (stickyCanvas.clientWidth - 230);
+        const y = 30 + Math.random() * (stickyCanvas.clientHeight - 190);
+
+        notes[id] = {
+          id,
+          text: 'Collaborate live! Click to edit text...',
+          x: Math.round(x),
+          y: Math.round(y),
+          color,
+          author: room.name
+        };
+        room.set('sticky_notes', notes);
+      };
+
+      function renderStickyNotes() {
+        const notes = room.get('sticky_notes') || {};
+        stickyCanvas.innerHTML = '';
+
+        for (const [id, note] of Object.entries(notes)) {
+          const el = document.createElement('div');
+          el.className = `sticky-note ${note.color || 'sticky-yellow'}`;
+          el.style.left = `${note.x}px`;
+          el.style.top = `${note.y}px`;
+
+          el.innerHTML = `
+            <div contenteditable="true" class="sticky-text" style="outline:none;min-height:75px;white-space:pre-wrap;">${note.text}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:rgba(0,0,0,0.5);margin-top:8px;">
+              <span>${note.author || 'Anonymous'}</span>
+              <button class="sticky-del" style="background:none;border:none;cursor:pointer;font-size:0.9rem;" title="Delete">🗑️</button>
+            </div>
+          `;
+
+          const textEl = el.querySelector('.sticky-text');
+          textEl.oninput = () => {
+            const currentNotes = { ...(room.get('sticky_notes') || {}) };
+            if (currentNotes[id]) {
+              currentNotes[id].text = textEl.innerText;
+              room.set('sticky_notes', currentNotes);
+            }
+          };
+
+          const delBtn = el.querySelector('.sticky-del');
+          delBtn.onclick = (e) => {
+            e.stopPropagation();
+            const currentNotes = { ...(room.get('sticky_notes') || {}) };
+            delete currentNotes[id];
+            room.set('sticky_notes', currentNotes);
+          };
+
+          let isDragging = false;
+          let startX, startY, origX, origY;
+
+          el.onpointerdown = (e) => {
+            if (e.target === textEl || e.target === delBtn) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            origX = note.x;
+            origY = note.y;
+            el.setPointerCapture(e.pointerId);
+          };
+
+          el.onpointermove = (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const newX = Math.max(0, Math.min(stickyCanvas.clientWidth - 195, origX + dx));
+            const newY = Math.max(0, Math.min(stickyCanvas.clientHeight - 150, origY + dy));
+            el.style.left = `${newX}px`;
+            el.style.top = `${newY}px`;
+          };
+
+          el.onpointerup = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            try { el.releasePointerCapture(e.pointerId); } catch(err){}
+            const finalX = parseInt(el.style.left, 10);
+            const finalY = parseInt(el.style.top, 10);
+            const currentNotes = { ...(room.get('sticky_notes') || {}) };
+            if (currentNotes[id]) {
+              currentNotes[id].x = finalX;
+              currentNotes[id].y = finalY;
+              room.set('sticky_notes', currentNotes);
+            }
+          };
+
+          stickyCanvas.appendChild(el);
+        }
+      }
+
+      // State listener
+      room.on('state', key => {
+        if (key.startsWith('quiz_')) renderQuiz();
+        if (key === 'sticky_notes') renderStickyNotes();
+      });
+
+      // Floating reactions
+      document.querySelectorAll('.react-btn').forEach(btn => {
+        btn.onclick = () => room.react(btn.getAttribute('data-emoji'), { x: 0.5, y: 0.5 });
+      });
+
+      // DevTools
+      const dtToggle = document.getElementById('dt-toggle');
+      const dtDrawer = document.getElementById('dt-drawer');
+      dtToggle.onclick = () => dtDrawer.classList.toggle('open');
+      document.getElementById('dt-close-btn').onclick = () => dtDrawer.classList.remove('open');
+
+      function updateDevTools() {
+        document.getElementById('dt-json').textContent = JSON.stringify(room.state(), null, 2);
+      }
+      room.on('state', updateDevTools);
+      room.on('latency', ms => { document.getElementById('dt-latency').textContent = `${ms} ms`; });
+      updateDevTools();
+    });
+  </script>
+</body>
+</html>
