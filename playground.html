@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveRoom Playground</title>
+  <link rel="stylesheet" href="/web/css/style.css">
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="brand"><span class="brand-dot"></span>LiveRoom</a>
+      <div class="status-pill offline" id="status-pill">
+        <span class="status-dot"></span><span id="status-text">Connecting...</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container" style="padding: 30px 24px 100px;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--text-dim);font-weight:700;">Room ID</div>
+        <div style="font-family:var(--font-mono);font-size:1.25rem;font-weight:700;" id="room-id-display">Loading...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div style="text-align:right;">
+          <div style="font-size:0.75rem;color:var(--text-dim);" id="user-count">0 Online</div>
+          <div style="font-size:0.75rem;color:var(--accent-cyan);" id="typing-status"></div>
+        </div>
+        <div class="avatar-stack" id="presence-list"></div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" id="btn-copy-link">🔗 Copy Link</button>
+        <button class="btn btn-secondary" id="btn-new-room">➕ New Room</button>
+        <button class="btn btn-chaos" id="btn-chaos-test">⚡ Chaos: Drop 4s</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns: 2fr 1fr;gap:24px;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="color:#fff;">Shared State</h3>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" id="btn-undo">↶ Undo</button>
+            <button class="btn btn-secondary" id="btn-redo">↷ Redo</button>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+          <div><strong>Shared Counter</strong></div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button class="btn btn-secondary" id="btn-dec">−</button>
+            <span id="counter-val" style="font-size:2rem;font-family:var(--font-mono);font-weight:700;color:var(--accent-cyan);min-width:50px;text-align:center;">0</span>
+            <button class="btn btn-primary" id="btn-inc">+</button>
+          </div>
+        </div>
+
+        <textarea id="shared-text" rows="6" placeholder="Type here in multiple tabs to test live sync..." style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border-subtle);color:#fff;padding:12px;border-radius:var(--radius-sm);outline:none;"></textarea>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+          <span style="font-size:0.85rem;color:var(--text-muted);">Reactions:</span>
+          <div class="reactions-bar">
+            <button class="react-btn" data-emoji="❤️">❤️</button>
+            <button class="react-btn" data-emoji="🔥">🔥</button>
+            <button class="react-btn" data-emoji="🚀">🚀</button>
+            <button class="react-btn" data-emoji="🎉">🎉</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <h4 style="margin-bottom:12px;color:#fff;">Scan on Mobile</h4>
+        <div style="background:#0f172a;padding:12px;display:inline-block;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
+          <img id="qr-code-img" src="" width="160" height="160" alt="QR Code">
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script type="module" src="/web/js/playground.js"></script>
+
+  <script>
+
+import { LiveRoom } from '../../client/liveroom.js';
+import { attachDevTools } from './devtools.js';
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  let roomId = params.get('room') || 'room-' + Math.random().toString(36).substring(2, 9);
+  if (!params.get('room')) {
+    const u = new URL(window.location.href);
+    u.searchParams.set('room', roomId);
+    window.history.replaceState({}, '', u);
+  }
+
+  const room = LiveRoom.join(roomId);
+  room.cursors(true);
+  attachDevTools(room);
+
+  const statusPill = document.getElementById('status-pill');
+  const statusText = document.getElementById('status-text');
+  const roomDisplay = document.getElementById('room-id-display');
+  const presenceList = document.getElementById('presence-list');
+  const userCount = document.getElementById('user-count');
+  const copyLinkBtn = document.getElementById('btn-copy-link');
+  const newRoomBtn = document.getElementById('btn-new-room');
+  const qrImg = document.getElementById('qr-code-img');
+  const sharedTextInput = document.getElementById('shared-text');
+  const sharedCounterValue = document.getElementById('counter-val');
+  const btnInc = document.getElementById('btn-inc');
+  const btnDec = document.getElementById('btn-dec');
+  const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
+  const chaosBtn = document.getElementById('btn-chaos-test');
+
+  roomDisplay.textContent = room.id;
+  qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(room.link())}&bgcolor=0f172a&color=f8fafc`;
+
+  copyLinkBtn.onclick = async () => {
+    await navigator.clipboard.writeText(room.link());
+    copyLinkBtn.textContent = '✓ Copied!';
+    setTimeout(() => copyLinkBtn.textContent = '🔗 Copy Link', 2000);
+  };
+
+  newRoomBtn.onclick = () => window.location.search = `?room=room-${Math.random().toString(36).substring(2, 9)}`;
+
+  room.on('status', s => {
+    statusPill.className = `status-pill ${s}`;
+    statusText.textContent = s;
+  });
+
+  room.on('presence', users => {
+    userCount.textContent = `${users.length} Online`;
+    presenceList.innerHTML = '';
+    users.forEach(u => {
+      const av = document.createElement('div');
+      av.className = 'avatar-circle';
+      av.style.background = u.color || '#6366f1';
+      av.textContent = (u.name || 'U')[0].toUpperCase();
+      presenceList.appendChild(av);
+    });
+  });
+
+  room.on('state', (key, val) => {
+    if (key === 'counter') sharedCounterValue.textContent = val ?? 0;
+    if (key === 'notes' && document.activeElement !== sharedTextInput) sharedTextInput.value = val ?? '';
+  });
+
+  btnInc.onclick = () => room.set('counter', (room.get('counter') || 0) + 1);
+  btnDec.onclick = () => room.set('counter', (room.get('counter') || 0) - 1);
+  btnUndo.onclick = () => room.undo();
+  btnRedo.onclick = () => room.redo();
+
+  sharedTextInput.oninput = (e) => room.set('notes', e.target.value);
+
+  chaosBtn.onclick = async () => {
+    chaosBtn.disabled = true;
+    chaosBtn.textContent = 'Offline 4s...';
+    await room.simulateDisconnect(4000);
+    chaosBtn.disabled = false;
+    chaosBtn.textContent = '⚡ Chaos: Drop 4s';
+  };
+
+  document.querySelectorAll('.react-btn').forEach(btn => {
+    btn.onclick = () => room.react(btn.getAttribute('data-emoji'), { x: 0.5, y: 0.5 });
+  });
+});
+</script>
+</body>
+</html>
